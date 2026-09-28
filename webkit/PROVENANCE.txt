@@ -1,0 +1,8 @@
+Official Playwright WebKit build, unmodified, downloaded by: npx playwright install webkit (playwright@1.56.0)
+revision: 2215
+browser version: 26.0
+platform: ubuntu24.04-x64 (runner ubuntu24 20260920.314.1)
+downloaded: 2026-09-28T04:44:36Z, run 1
+archive: webkit-2215.tar.xz, 66300504 bytes, split into 2 parts
+restore: cat webkit-2215.tar.xz.part-* > webkit-2215.tar.xz && sha256sum -c SHA256SUMS && tar -xJf webkit-2215.tar.xz -C $PLAYWRIGHT_BROWSERS_PATH
+sources and licenses: https://github.com/microsoft/playwright (browser_patches/webkit, Apache-2.0), https://github.com/WebKit/WebKit (LGPL-2.1 / BSD)
