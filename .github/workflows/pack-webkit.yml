@@ -1,0 +1,53 @@
+name: pack-webkit
+# One-time: store the official, unmodified Playwright WebKit build (Playwright 1.56.0, revision 2215, Ubuntu 24.04)
+# in this repository as parts under 45 MB, with SHA256SUMS and PROVENANCE.txt, so that a machine without
+# access to cdn.playwright.dev can fetch it with a plain `git clone`.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  pack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download the official WebKit build and check that it launches
+        run: |
+          set -e
+          mkdir -p /tmp/pw && cd /tmp/pw && npm init -y > /dev/null
+          npm install --no-save --no-audit --no-fund playwright@1.56.0
+          PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers npx playwright install --with-deps webkit
+          PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers node -e "require('playwright').webkit.launch().then(async b => { console.log('WebKit', b.version()); require('fs').writeFileSync('/tmp/webkit-version.txt', b.version()); await b.close() })"
+          ls -la /tmp/pw-browsers
+      - name: Pack into parts under 45 MB with checksums and provenance
+        run: |
+          set -e
+          D=$(ls -d /tmp/pw-browsers/webkit-*); REV=${D##*-}
+          rm -rf webkit && mkdir webkit
+          tar -C /tmp/pw-browsers -cJf /tmp/webkit-$REV.tar.xz webkit-$REV
+          split -b 45m -d -a 2 /tmp/webkit-$REV.tar.xz webkit/webkit-$REV.tar.xz.part-
+          (cd webkit && sha256sum webkit-$REV.tar.xz.part-* > SHA256SUMS)
+          (cd /tmp && sha256sum webkit-$REV.tar.xz) >> webkit/SHA256SUMS
+          {
+            echo "Official Playwright WebKit build, unmodified, downloaded by: npx playwright install webkit (playwright@1.56.0)"
+            echo "revision: $REV"
+            echo "browser version: $(cat /tmp/webkit-version.txt)"
+            echo "platform: ubuntu24.04-x64 (runner $ImageOS $ImageVersion)"
+            echo "downloaded: $(date -u +%Y-%m-%dT%H:%M:%SZ), run $GITHUB_RUN_NUMBER"
+            echo "archive: webkit-$REV.tar.xz, $(stat -c%s /tmp/webkit-$REV.tar.xz) bytes, split into $(ls webkit/*.part-* | wc -l) parts"
+            echo "restore: cat webkit-$REV.tar.xz.part-* > webkit-$REV.tar.xz && sha256sum -c SHA256SUMS && tar -xJf webkit-$REV.tar.xz -C \$PLAYWRIGHT_BROWSERS_PATH"
+            echo "sources and licenses: https://github.com/microsoft/playwright (browser_patches/webkit, Apache-2.0), https://github.com/WebKit/WebKit (LGPL-2.1 / BSD)"
+          } > webkit/PROVENANCE.txt
+          cat webkit/PROVENANCE.txt webkit/SHA256SUMS
+          ls -la webkit
+      - name: Commit the parts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add webkit
+          git commit -m "WebKit build for Playwright 1.56.0 (official, split parts)" || echo "nothing to commit"
+          git push
